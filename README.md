@@ -1,1 +1,35 @@
 # Matrix_Playground
+
+This repository doesn't have much structure at the moment.
+
+The pettingzoo environment for the game is defined in matrix_playground.py
+
+The decentralized learning algorithm is defined in several_algorithms.py
+
+learn_matrix_playground.py trains the learners on matrix_playground.
+
+Near the top of the file you can set
+    game: a dictionary like
+      { ("C", "C"): (3, 3),
+        ("C", "D"): (0, 4),
+        ("D", "C"): (4, 0),
+        ("D", "D"): (1, 1) }
+     indicating pairs of rewards corresponding to pairs of plays
+     
+     num_agents: the number of agents in the playground
+     
+     memory: the number of prior games (with their current opponent) an agent remembers
+     
+     horizon: the number of games in one episode of the game
+     
+     training_timesteps: the number of environment timesteps that the agents are trained on
+     
+ TODOS:
+    - play around! Try out different games just to see what happens.
+    - the code is annotated with comments like "don't understand this". figure out what those lines are doing.
+    - really ensure that the learners in learn_matrix_playground.py are learning independently. This is unclear to me at the moment. All I can tell is
+    that the learners are really learning different policies because they react differently to the same observation.
+    - edit several_algorithms so that it works with all the relevant RL algorithms in stable baselines. At the moment if I try to train with DQN it
+    bugs out.
+    - figure out how to store the model at different stages during learning in order to test progress.
+    - more stuff I can't think of at the moment but what's above will keep me busy for a good bit.
