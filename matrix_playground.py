@@ -131,10 +131,10 @@ class parallel_env(ParallelEnv):
             game: a dictionary whose keys are pairs of actions and values are
             pairs of rewards, representing the reward matrix of a 2 x 2 matrix
             game. For example,
-                {(0, 0): (3, 3),
-                 (0, 1): (0, 4),
-                 (1, 0): (4, 0),
-                 (1, 1): (1, 1)}
+                {("C", "C"): (3, 3),
+                 ("C", "D"): (0, 4),
+                 ("D", "C"): (4, 0),
+                 ("D", "D"): (1, 1)}
             represents a prisoner's dilemma where 1 is collaborate and 2 is defect
 
             num_of_agents: an even number representing the number
@@ -299,17 +299,12 @@ class parallel_env(ParallelEnv):
         dictionaries where each dictionary looks like {agent_1:item_1, agent_2:item_2, \ldots }
         """
         # determine rewards according to game
-        rewards = {}
-        for agent in self.agents:
-            opponent = self.pair_selection[agent]
-            if agent_ID(agent) < agent_ID(opponent):
-                rewards[agent] = self.game[
-                        (actions[agent], actions[opponent])
-                    ][0]
-            else:
-                rewards[agent] = self.game[
-                        (actions[opponent], actions[agent])
-                    ][1]
+        rewards = {
+            agent: self.game[
+                (actions[agent],
+                actions[self.pair_selection[agent]])
+                ][0] for agent in self.agents
+        }
 
         self.num_rounds += 1
 
