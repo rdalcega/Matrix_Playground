@@ -25,6 +25,9 @@ Near the top of the file you can set
      
      training_timesteps: the number of environment timesteps that the agents are trained on
      
+PACKAGES: I think all you need for this to run is pettingzoo, stable_baselines3, and supersuit. I've been installing them in a virtualenv so as not to clutter my computer with packages I don't use.
+     
+ 
  TODOS:
  
     - play around! Try out different games just to see what happens.
