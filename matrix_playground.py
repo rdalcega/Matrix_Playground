@@ -60,7 +60,8 @@ def memory_to_observation(memory):
         observation = np.array(np.append(observation, interpretation_to_encoding(memory[i][1])), dtype=np.uint8)
     return observation
 
-
+def agent_ID(agent):
+    return int(agent[6:])
 
 # adaptation of random_demo but for
 # parallel_env. Otherwise its relationship
@@ -298,11 +299,17 @@ class parallel_env(ParallelEnv):
         dictionaries where each dictionary looks like {agent_1:item_1, agent_2:item_2, \ldots }
         """
         # determine rewards according to game
-        rewards = {
-            agent: self.game[
-                (actions[agent], actions[self.pair_selection[agent]])
-            ][0] for agent in self.agents
-        }
+        rewards = {}
+        for agent in self.agents:
+            opponent = self.pair_selection[agent]
+            if agent_ID(agent) < agent_ID(opponent):
+                rewards[agent] = self.game[
+                        (actions[agent], actions[opponent])
+                    ][0]
+            else:
+                rewards[agent] = self.game[
+                        (actions[opponent], actions[agent])
+                    ][1]
 
         self.num_rounds += 1
 
