@@ -8,10 +8,13 @@ from stable_baselines3.common.env_util import make_vec_env
 
 from stable_baselines3.common.utils import set_random_seed
 
-from several_algorithms import SeveralAlgorithms
-
-import matrix_playground
 import supersuit as ss
+
+import os
+
+from several_algorithms import SeveralAlgorithms
+import matrix_playground
+from matrix_games import PrisonersDilemma, StagHunt, Chicken 
 
 # DON'T UNDERSTAND THIS
 # BUT REMOVING IT IS CATASTROPHIC
@@ -19,16 +22,14 @@ import multiprocessing
 multiprocessing.set_start_method("fork")
 
 # define 2x2 Matrix Game
-game = {
-    ("C", "C"): (100, 100),
-    ("C", "D"): (0, 200),
-    ("D", "C"): (200, 0),
-    ("D", "D"): (1, 1)
-}
+game = PrisonersDilemma
 # and other globals
-num_agents = 2 # must be even
+num_agents = 10 # must be even
 memory = 3
-horizon = 100
+horizon = 20
+
+# training parameters
+training_timesteps = 1e3
 
 env = matrix_playground.parallel_env(
         game,
@@ -58,12 +59,18 @@ if True:
         for j in range(num_agents)
     ], env)
     # Train the agent
-    model.learn(total_timesteps=int(100000))
+    model.learn(total_timesteps=training_timesteps)
 
 # Enjoy trained agent
+episodes = 10
+file = open("render.txt", "w")
+file.write("game=" + str(game) + "\n")
+file.write("num_agents=" + str(num_agents) + "\n")
+file.write("memory=" + str(memory) + "\n")
+file.write("horizon=" + str(horizon) + "\n")
+file.close()
 obs = env.reset()
-for i in range(1000):
-    env.render()
-    input()
+for i in range(episodes*horizon):
     action, _states = model.predict(obs)
     obs, rewards, dones, info = env.step(action)
+    env.render()
