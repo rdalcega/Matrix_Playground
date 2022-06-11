@@ -7,16 +7,13 @@ from pettingzoo.test import api_test, parallel_api_test
 from pettingzoo.utils import wrappers
 from pettingzoo.utils import parallel_to_aec
 
-# Set to True to run api_test and parallel_api_test
-TEST = False
+from matrix_games import PrisonersDilemma
 
-# define PD as a game for default argument to env
-PD = {
-    ("C", "C"): (3, 3),
-    ("C", "D"): (0, 4),
-    ("D", "C"): (4, 0),
-    ("D", "D"): (1, 1)
-}
+# Set to True to run api_test and parallel_api_test
+RANDOM_DEMO = False
+PARALLEL_TEST = False
+API_TEST = False
+
 
 #UTILS
 
@@ -42,23 +39,16 @@ def action_to_interpretation(action):
     else:
         assert False, "action should be 0 or 1"
 
+vec_action_to_interpretation = np.vectorize(action_to_interpretation)
+
 # basically a dictionary of interpretations to encodings:
 def interpretation_to_encoding(interpretation):
     if interpretation == "C":
-        return [1, 0, 0]
+        return [1, 0]
     elif interpretation == "D":
-        return [0, 1, 0]
-    elif interpretation == "\u2205":
-        return [0, 0, 1]
+        return [0, 1]
     else:
-        assert False, "interpretation should be C, D, or \u2205"
-
-def memory_to_observation(memory):
-    observation = np.array([], dtype=np.uint8)
-    for i in range(len(memory)):
-        observation = np.array(np.append(observation, interpretation_to_encoding(memory[i][0])), dtype=np.uint8)
-        observation = np.array(np.append(observation, interpretation_to_encoding(memory[i][1])), dtype=np.uint8)
-    return observation
+        assert False, "interpretation should be C or D"
 
 def agent_ID(agent):
     return int(agent[6:])
@@ -70,8 +60,8 @@ def random_demo(env, render=True, episodes=1):
     total_reward = 0
     completed_episodes = 0
     while completed_episodes < episodes:
-        done = False
         observations = env.reset()
+        done = False
         while not done:
             if render:
                 env.render()
@@ -89,7 +79,7 @@ def random_demo(env, render=True, episodes=1):
 
 #ENVIRONMENT
 
-def env(game=PD, num_agents=4, memory=3, horizon=1000):
+def env(game=PrisonersDilemma, num_agents=4, memory=3, horizon=10):
     env = raw_env(game, num_agents, memory, horizon)
     # This wrapper is only for environments which print results to the terminal
     env = wrappers.CaptureStdoutWrapper(env)
@@ -101,7 +91,7 @@ def env(game=PD, num_agents=4, memory=3, horizon=1000):
     env = wrappers.OrderEnforcingWrapper(env)
     return env
 
-def raw_env(game=PD, num_agents=4, memory=3, horizon=1000):
+def raw_env(game=PrisonersDilemma, num_agents=4, memory=3, horizon=10):
     env = parallel_env(game, num_agents, memory, horizon)
     # Because the matrix games are not turn based, all players
     # play in parallel. However, many of the API tests (and possibly
@@ -118,7 +108,7 @@ class parallel_env(ParallelEnv):
     #of the environments in the repo.
     metadata = {"render_modes": ["human"], "name": "rps_v2"}
 
-    def __init__(self, game=PD, num_agents=4, memory=3, horizon=1000):
+    def __init__(self, game=PrisonersDilemma, num_agents=4, memory=3, horizon=10):
         """
         The init method takes in environment arguments and should define the following attributes:
         - possible_agents
@@ -190,26 +180,45 @@ class parallel_env(ParallelEnv):
         # be consistent with this practice to avoid trouble.
         self.action_spaces = dict(
             zip(self.possible_agents, [Discrete(2)]*num_agents)
-        ) # every player can play 0 or 1
+        ) # every player can play 0 ("C") or 1 ("D")
         self.observation_spaces = dict(
             zip(self.possible_agents,
-                [MultiBinary(3*2*self.memory)]*num_agents)
-        ) # suppose, for exaple, that self.memory is 2. Then the
-        # agents observation will be something like
-        # [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1]
+                [MultiBinary((num_agents - 1)*(1 + 2*2*self.memory))]*num_agents)
+        ) # suppose, for example, that self.memory is 3 and num_agents = 4. Then
+        # agent_0's observation when its about to play agent_2 will be something like
+        # [0, 
+        #   1, 0, 1, 0,
+        #   0, 1, 0, 1,
+        #   1, 0, 1, 0,
+        #  1,
+        #   1, 0, 0, 1,
+        #   0, 1, 0, 1,
+        #   0, 1, 1, 0,
+        #  0,
+        #   1, 0, 1, 0,
+        #   1, 0, 1, 0,
+        #   1, 0, 1, 0]
         # which is interpreted as
-        # {"t = -1": {
-        #   "agent": (1, 0, 0),
-        #   "opponent": (0, 1, 0)}.
-        # "t = -2": {
-        #   "agent": (0, 0, 1)
-        #   "opponent": (0, 0, 1) }}
+        # { "agent_1": {
+        #       "opponent": False,
+        #       -1: ["C", "C"],
+        #       -2: ["D", "D"],
+        #       -3: ["C", "C"] },
+        #    "agent_2": {
+        #       "opponent": True,
+        #       -1: ["C", "D"],
+        #       -2: ["D", "D"],
+        #       -3: ["D", "C"] },
+        #    "agent_3": {
+        #       "opponent": False,
+        #       -1: ["C", "C"],
+        #       -2: ["C", "C"],
+        #       -3: ["C", "C"] }
+        #}
         # where each thruple indicated the
         # action taken according to the following rule
-        # (1, 0, 0) = "C"
-        # (0, 1, 0) = "D"
-        # (0, 0, 1) = NO-OP (used at the beginning of the game
-        # while there are no relevant memories)
+        # (1, 0) = "C"
+        # (0, 1) = "D"
 
         """
         NOTE: This choice of observation space will allow us to see
@@ -241,24 +250,21 @@ class parallel_env(ParallelEnv):
 
     def render(self, mode="human"):
         if mode == "human":
-            i = 0
-            print("ROUND:", self.num_rounds)
-            for agent in self.pair_selection:
-                if i % 2 == 1:
-                    i += 1
-                    continue
-                i += 1
-                opponent = self.pair_selection[agent]
-                agent_history =    "\t\t\t" + agent + ": ? "
-                opponent_history = "\t\t\t" + opponent + ": ? "
-                for j in range(self.memory):
-                    agent_history += " <-- " + self.memories[agent][opponent][j][0]
-                    opponent_history += " <-- " + self.memories[agent][opponent][j][1]
-                print("\t", agent, "against", self.pair_selection[agent], ":")
-                print("\t\tHISTORY:")
-                print(agent_history)
-                print(opponent_history)
-                print("\n")
+            if self.num_rounds == self.horizon - 1:
+                output = open("render.txt", "a")
+                output.write("-"*30 + "\n")
+                for i in range(self.num_agents):
+                    for j in range(i+1, self.num_agents):
+                        agent = "agent_" + str(i)
+                        opponent = "agent_" + str(j)
+                        output.write(agent + " vs " + opponent + "\n")
+                        history = self.histories[agent][opponent]
+                        for t in range(len(history)):
+                            output.write("\t" + str(history[-1 - t]))
+                            if t < self.memory:
+                                output.write(" <-- (init)")
+                            output.write("\n")
+                output.close()
 
     def close(self):
         """
@@ -278,16 +284,22 @@ class parallel_env(ParallelEnv):
         """
         self.agents = self.possible_agents[:]
         self.num_rounds = 0
-        self.memories = {
+        self.histories = {
             agent: {
-                opponent: np.array([["\u2205", "\u2205"]]*self.memory) for opponent in self.agents
+                opponent:
+                    self.random_init_history()
+                    for opponent in self.agents
             } for agent in self.agents
         }
         self.pair_selection = random_pairs(self.num_agents)
         observations = {
-            agent: memory_to_observation(self.memories[agent][self.pair_selection[agent]]) for agent in self.agents
+            agent: self.history_to_observation(agent, self.pair_selection[agent]) for agent in self.agents
         }
         return observations
+
+    def random_init_history(self):
+        as_ints = np.random.randint(0, 2, (self.memory, 2))
+        return vec_action_to_interpretation(as_ints)
 
     def step(self, actions):
         """
@@ -298,6 +310,7 @@ class parallel_env(ParallelEnv):
             - infos
         dictionaries where each dictionary looks like {agent_1:item_1, agent_2:item_2, \ldots }
         """
+
         # determine rewards according to game
         rewards = {
             agent: self.game[
@@ -313,21 +326,20 @@ class parallel_env(ParallelEnv):
         dones = {
             agent: done for agent in self.agents
         }
-        if done: self.agents = {}
 
         # update memories to most recent actions
         for agent in self.agents:
             opponent = self.pair_selection[agent]
-            old = self.memories[agent][opponent]
-            self.memories[agent][opponent] = np.append(
+            old = self.histories[agent][opponent]
+            self.histories[agent][opponent] = np.append(
                 [[action_to_interpretation(actions[agent]), action_to_interpretation(actions[opponent])]],
-                old[:-1],
+                old,
                 axis=0)
 
         # select new pairs and update observations accordingly
         self.pair_selection = random_pairs(self.num_agents)
         observations = {
-            agent: memory_to_observation(self.memories[agent][self.pair_selection[agent]]) for agent in self.agents
+            agent: self.history_to_observation(agent, self.pair_selection[agent]) for agent in self.agents
         }
 
         # for now info carries no info
@@ -337,22 +349,41 @@ class parallel_env(ParallelEnv):
         # of agents that are not done. So if the game is over
         # set self.agents to an empty dictionary.
 
+        if done: self.agents = []
+
         return observations, rewards, dones, infos
+
+    def history_to_observation(self, agent, opponent):
+        observation = np.array([])
+        for player in self.agents:
+            if player == agent:
+                pass
+            else:
+                if player == opponent:
+                    observation = np.append(observation, [1])
+                else:
+                    observation = np.append(observation, [0])
+                history = self.histories[agent][opponent]
+                for t in range(self.memory):
+                    observation = np.append(observation, interpretation_to_encoding(history[t][0]))
+                    observation = np.append(observation, interpretation_to_encoding(history[t][1]))
+        return np.array(observation, dtype=np.uint8)
 
 
 #TESTS
 
-if TEST:
+if RANDOM_DEMO:
 
-    #RANDOM DEMO
     _env = parallel_env()
     random_demo(_env)
 
-    #PARALLEL API TEST
+if PARALLEL_TEST:
+
     _env = parallel_env()
     parallel_api_test(_env, num_cycles=100)
     print("PASSED Parallel API Test!")
 
-    #API TEST
+if API_TEST:
+
     _env = env()
     api_test(_env, num_cycles=100, verbose_progress=False)
