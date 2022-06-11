@@ -1,5 +1,7 @@
 
-This repository doesn't have much structure at the moment.
+This repository doesn't have much structure at the moment and it's unclear that the code works as intended at the moment.
+
+Some interesting printouts are in the curiosities folder. But take anything you see there with a grain of salt. It's likely they are flukes.
 
 The pettingzoo environment for the game is defined in matrix_playground.py
 
