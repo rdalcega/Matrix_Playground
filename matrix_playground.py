@@ -220,20 +220,6 @@ class parallel_env(ParallelEnv):
         # (1, 0) = "C"
         # (0, 1) = "D"
 
-        """
-        NOTE: This choice of observation space will allow us to see
-        if agents can learn what to do with a combed history.
-        This is, of course, distinct from a reputation. But I strongly suspect
-        that if we don't see agents learn to do something interesting with
-        histories of actions, we won't see agents learn to do something interesting with
-        histories of actions labelled by their opponents IDs. The latter seems
-        like an added layer of complexity.
-
-        One way to think about this choice, is that we're programming the agent
-        to understand agents' identities and reduce their history only to the
-        relevant interaction with that agent.
-        """
-
     def observation_space(self, agent):
         """
         A function that retrieves the observation space for a particular agent. This space should never
