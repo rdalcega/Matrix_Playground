@@ -41,6 +41,8 @@ PACKAGES: I think all you need for this to run is pettingzoo, stable_baselines3,
     - edit several_algorithms so that it works with all the relevant RL algorithms in stable baselines. At the moment if I try to train with DQN it
     bugs out.
     
+    - Right now observations are reencoded on every step from the histories. This is obviously quite inefficient since only a small portion of the bits in the encoding change on any step. Fix this. Make it so that observations are only edited where they change on every time step.
+    
     - figure out how to store the model at different stages during learning in order to test progress.
     
     - what's the right way to do a TODO list on github? It's not this I'm sure.
