@@ -1,5 +1,5 @@
 import gym
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.evaluation import evaluate_policy
 
 from stable_baselines3.common.vec_env import DummyVecEnv
@@ -14,7 +14,7 @@ import os
 
 from several_algorithms import SeveralAlgorithms
 import matrix_playground
-from matrix_games import PrisonersDilemma, StagHunt, Chicken 
+from utils.matrix_games import PrisonersDilemma, StagHunt, Chicken, BattleOfTheSexes
 
 # DON'T UNDERSTAND THIS
 # BUT REMOVING IT IS CATASTROPHIC
@@ -22,14 +22,14 @@ import multiprocessing
 multiprocessing.set_start_method("fork")
 
 # define 2x2 Matrix Game
-game = PrisonersDilemma
+game = Chicken
 # and other globals
-num_agents = 10 # must be even
-memory = 3
-horizon = 20
+num_agents = 2 # must be even
+memory = 1
+horizon = 10
 
 # training parameters
-training_timesteps = 1e3
+training_timesteps = 1e6
 
 env = matrix_playground.parallel_env(
         game,
@@ -55,7 +55,7 @@ env = ss.concat_vec_envs_v1(
 if True:
     # Instantiate the agent
     model = SeveralAlgorithms([
-        PPO('MlpPolicy', env, verbose=3)
+        PPO('MlpPolicy', env, verbose=3, gamma=1, learning_rate=0.0001)
         for j in range(num_agents)
     ], env)
     # Train the agent
@@ -63,7 +63,7 @@ if True:
 
 # Enjoy trained agent
 episodes = 10
-file = open("render.txt", "w")
+file = open("temp_render.txt", "w")
 file.write("game=" + str(game) + "\n")
 file.write("num_agents=" + str(num_agents) + "\n")
 file.write("memory=" + str(memory) + "\n")
