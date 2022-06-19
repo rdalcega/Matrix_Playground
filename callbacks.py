@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 import pprint
 import copy
+import matplotlib.pyplot as plt
 
 # HELPERS
 
@@ -39,9 +40,28 @@ class log_progress(BaseCallback):
 
         self.checkpoints=checkpoints
 
-        self.reward_buffers = [[]]*self.num_agents
-        self.cooperation_buffers = [[]]*self.num_agents
+        # the buffers keep the data that
+        # has not yet been written to the records
+        self.reward_buffers = [None]*self.num_agents
+        self.cooperation_buffers = [None]*self.num_agents
+        for ID in range(self.num_agents):
+            self.reward_buffers[ID] = []
+            self.cooperation_buffers[ID] = []
         self.timestamp_buffer = []
+
+        # the lists contain all of the data
+        # collected in the experiment so far.
+        # we need the entire lists in order to update
+        # the plots.
+        self.reward_lists = [None]*self.num_agents
+        self.cooperation_lists = [None]*self.num_agents
+        for ID in range(self.num_agents):
+            self.reward_lists[ID] = []
+            self.cooperation_lists[ID] = []
+        self.timestamp_list = []
+
+        self.avg_reward = []
+        self.avg_cooperation = []
 
         #self.sample_episodes = sample_episodes
 
@@ -54,6 +74,7 @@ class log_progress(BaseCallback):
         # named by the date and time
         self.dir_name = "logs/" + self.game["label"] + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         os.mkdir(self.dir_name)
+
 
         # write a file that includes all of the
         # relevant parameters
@@ -77,6 +98,7 @@ class log_progress(BaseCallback):
         reward.write("where type of timstep is int and type of reward is float\n")
         reward.write("START\n")
         reward.close()
+
         self.cooperation_path = self.dir_name + "/cooperation_record.txt"
         cooperation = open(self.cooperation_path, "w")
         cooperation.write("FORMAT\n")
@@ -84,8 +106,25 @@ class log_progress(BaseCallback):
         cooperation.write("where type of timestep is int and type of cooperation is float\n")
         cooperation.write("START\n")
         cooperation.close()
+
+        # create directory to store models in
         self.models_dir_name = self.dir_name + "/models"
         os.mkdir(self.models_dir_name)
+
+        # create directory to store plots in
+        self.plots_dir_name = self.dir_name + "/plots"
+        os.mkdir(self.plots_dir_name)
+
+        # initialize all the relevant figures
+        self.reward_fig = plt.figure()
+        self.reward_plot = self.reward_fig.add_subplot()
+        self.avg_reward_fig = plt.figure()
+        self.avg_reward_plot = self.avg_reward_fig.add_subplot()
+        
+        self.cooperation_fig = plt.figure()
+        self.cooperation_plot = self.cooperation_fig.add_subplot()
+        self.avg_cooperation_fig = plt.figure()
+        self.avg_cooperation_plot = self.avg_cooperation_fig.add_subplot()
 
 
     def _on_training_start(self, learner, stop_time) -> None:
@@ -121,8 +160,8 @@ class log_progress(BaseCallback):
         for ID in range(self.num_agents):
             # we need 1 - action because
             # the encoding has 0 as cooperate
-            self.cooperation_counts[ID] += 1 - actions[ID]
-            self.cumulative_rewards[ID] += rewards[ID]
+            self.cooperation_counts[ID] = self.cooperation_counts[ID] + 1 - actions[ID]
+            self.cumulative_rewards[ID] = self.cumulative_rewards[ID] + rewards[ID]
         #if self.num_rounds == self.horizon - 1 and len(self.histories) < self.sample_episodes:
         #    self.histories += copy.deepcopy(env.histories)
         return True
@@ -142,12 +181,12 @@ class log_progress(BaseCallback):
         steps = learners[0].n_steps
 
         for ID in range(self.num_agents):
-            self.cooperation_buffers[ID] += [
+            self.cooperation_buffers[ID].append(
                 self.cooperation_counts[ID]/steps
-            ]
-            self.reward_buffers[ID] += [
+            )
+            self.reward_buffers[ID].append(
                 self.cumulative_rewards[ID]/steps
-            ]
+            )
         # we save timestamp - update_steps because
         # that is the timestamp at the beginning of
         # training, which corresponds to the timestamp
@@ -161,23 +200,99 @@ class log_progress(BaseCallback):
             # and run some trials.
 
             # write rewards and cooperations
-            reward = open(self.reward_path, "a")
-            cooperation = open(self.cooperation_path, "a")
+            reward_record = open(self.reward_path, "a")
+            cooperation_record = open(self.cooperation_path, "a")
             for i, timestamp in enumerate(self.timestamp_buffer):
-                reward.write(str(timestamp) + ",")
-                cooperation.write(str(timestamp) + ",")
+                reward_record.write(str(timestamp) + ",")
+                cooperation_record.write(str(timestamp) + ",")
                 for ID in range(self.num_agents):
-                    reward.write(str(self.reward_buffers[ID][i]))
-                    cooperation.write(str(self.cooperation_buffers[ID][i]))
+                    if ID == 0:
+                        self.avg_reward += [self.reward_buffers[ID][i]/self.num_agents]
+                        self.avg_cooperation += [self.cooperation_buffers[ID][i]/self.num_agents]
+                    else:
+                        self.avg_reward[-1] = self.avg_reward[-1] + self.reward_buffers[ID][i]/self.num_agents
+                        self.avg_cooperation[-1] = self.avg_cooperation[-1] + self.cooperation_buffers[ID][i]/self.num_agents
+                    reward_record.write(str(self.reward_buffers[ID][i]))
+                    cooperation_record.write(str(self.cooperation_buffers[ID][i]))
                     if ID < self.num_agents - 1:
-                        reward.write(",")
-                        cooperation.write(",")
-                reward.write("\n")
-                cooperation.write("\n")
-            # clear buffers
-            self.reward_buffers = [[]]*self.num_agents
-            self.cooperation_buffers = [[]]*self.num_agents
+                        reward_record.write(",")
+                        cooperation_record.write(",")
+                reward_record.write("\n")
+                cooperation_record.write("\n")
+            reward_record.close()
+            cooperation_record.close()
+            # append data in buffers to lists
+            # and reset buffers
+            for ID in range(self.num_agents):
+                self.reward_lists[ID] += self.reward_buffers[ID]
+                self.cooperation_lists[ID] += self.cooperation_buffers[ID]
+            self.timestamp_list += self.timestamp_buffer
+            for ID in range(self.num_agents):
+                self.reward_buffers[ID] = []
+                self.cooperation_buffers[ID] = []
             self.timestamp_buffer = []
+
+            # update plots
+            self.reward_plot.cla()
+            for ID in range(self.num_agents):
+                label = "agent_" + str(ID)
+                self.reward_plot.plot(self.timestamp_list, self.reward_lists[ID], label=label)
+
+            self.reward_plot.set_xlabel("timestep")
+            self.reward_plot.set_ylabel("reward")
+
+            if self.num_agents < 10:
+                self.reward_plot.legend()
+
+            self.reward_plot.set_ylim([0, 1])
+
+            self.reward_plot.set_title("reward per game during training")
+
+            self.reward_fig.savefig(self.plots_dir_name + "/reward.png")
+
+            self.avg_reward_plot.cla()
+            self.avg_reward_plot.plot(self.timestamp_list, self.avg_reward)
+
+            self.avg_reward_plot.set_xlabel("timestep")
+            self.avg_reward_plot.set_ylabel("reward")
+
+            self.avg_reward_plot.set_ylim([0, 1])
+
+            self.avg_reward_plot.set_title("average reward per game during training")
+
+            self.avg_reward_fig.savefig(self.plots_dir_name + "/avg_reward.png")
+
+             # update plots
+            self.cooperation_plot.cla()
+            for ID in range(self.num_agents):
+                label = "agent_" + str(ID)
+                self.cooperation_plot.plot(self.timestamp_list, self.cooperation_lists[ID], label=label)
+
+            self.cooperation_plot.set_xlabel("timestep")
+            self.cooperation_plot.set_ylabel("# cooperations / # actions")
+
+            if self.num_agents < 10:
+                self.cooperation_plot.legend()
+
+            self.cooperation_plot.set_ylim([0, 1])
+
+            self.cooperation_plot.set_title("cooperation during training")
+
+            self.cooperation_fig.savefig(self.plots_dir_name + "/cooperation.png")
+
+            self.avg_cooperation_plot.cla()
+            self.avg_cooperation_plot.plot(self.timestamp_list, self.avg_cooperation)
+
+            self.avg_cooperation_plot.set_xlabel("timestep")
+            self.avg_cooperation_plot.set_ylabel("# cooperations / # actions")
+
+            self.avg_cooperation_plot.set_ylim([0, 1])
+
+            self.avg_cooperation_plot.set_title("average cooperation during training")
+
+            self.avg_cooperation_fig.savefig(self.plots_dir_name + "/avg_cooperation.png")
+
+
             # save the models at the current timestamp
             timestamp_dir_name = self.models_dir_name + "/" + str(timestamp)
             os.mkdir(timestamp_dir_name)

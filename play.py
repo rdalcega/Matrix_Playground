@@ -3,13 +3,13 @@ from callbacks import log_progress
 from matrix_games import PrisonersDilemma, BattleOfTheSexes, StagHunt, Chicken
 from stable_baselines3 import PPO, A2C
 
-game = BattleOfTheSexes(100)
-num_agents = 4
+game = BattleOfTheSexes(2)
+num_agents = 10
 memory = 1
 horizon = 10
 learner = PPO
-n_steps = 10
-checkpoints= 1
+n_steps = 100
+checkpoints= 10
 callback = log_progress(
     game=game,
     num_agents=num_agents,
@@ -17,7 +17,7 @@ callback = log_progress(
     horizon=horizon,
     checkpoints=checkpoints
 )
-total_timesteps=1e3
+total_timesteps=1e4
 
 learn_matrix_playground(
     game=game,
