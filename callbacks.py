@@ -241,7 +241,7 @@ class log_progress(BaseCallback):
             self.reward_plot.set_xlabel("timestep")
             self.reward_plot.set_ylabel("reward")
 
-            if self.num_agents < 10:
+            if self.num_agents <= 10:
                 self.reward_plot.legend()
 
             self.reward_plot.set_ylim([0, 1])
@@ -271,7 +271,7 @@ class log_progress(BaseCallback):
             self.cooperation_plot.set_xlabel("timestep")
             self.cooperation_plot.set_ylabel("# cooperations / # actions")
 
-            if self.num_agents < 10:
+            if self.num_agents <= 10:
                 self.cooperation_plot.legend()
 
             self.cooperation_plot.set_ylim([0, 1])

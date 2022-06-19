@@ -5,7 +5,7 @@ from stable_baselines3 import PPO, A2C
 
 game = BattleOfTheSexes(2)
 num_agents = 10
-memory = 1
+memory = 2
 horizon = 10
 learner = PPO
 n_steps = 100
@@ -17,7 +17,7 @@ callback = log_progress(
     horizon=horizon,
     checkpoints=checkpoints
 )
-total_timesteps=1e4
+total_timesteps=2e4
 
 learn_matrix_playground(
     game=game,
