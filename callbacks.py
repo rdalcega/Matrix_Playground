@@ -135,8 +135,9 @@ class RolloutSummary():
         self.average_rewards = {
             agent: {
                 opponent: self.cumulative_rewards[agent][opponent]/self.action_counts[agent][opponent]
-            } for opponent in self.agents
-        } for agent in self.agents
+                for opponent in self.agents
+            } for agent in self.agents
+        }
         self.average_cooperation = {
             agent: {
                 opponent: self.cooperation_counts[agent][opponent]/self.action_counts[agent][opponent]
