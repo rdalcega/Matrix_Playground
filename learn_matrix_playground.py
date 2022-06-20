@@ -62,6 +62,8 @@ def learn_matrix_playground(
         horizon=horizon
     )
 
+    #env.reset()
+
     # use supersuit to wrap env, which is
     # a petting zoo parallel_env into
     # a vec_env that can be learned

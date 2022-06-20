@@ -215,7 +215,14 @@ class DecentralizedOnPolicyLearners:
 
             on_step = getattr(callback, "_on_step", None)
             if on_step is not None:
-                on_step(env, flattened_actions, rewards)
+                on_step(
+                    self,
+                    steps,
+                    flattened_actions,
+                    observations,
+                    rewards,
+                    dones,
+                    infos)
 
             # the following snippet is commented 
             # out because matrix_playground always
@@ -280,7 +287,8 @@ class DecentralizedOnPolicyLearners:
 
         on_rollout_end = getattr(callback, "_on_rollout_end", None)
         if on_rollout_end is not None:
-            on_rollout_end(self.learners, self.learners[0].num_timesteps)
+            #on_rollout_end(self.learners, self.learners[0].num_timesteps)
+            on_rollout_end()
 
         return True
 
@@ -352,6 +360,7 @@ class DecentralizedOnPolicyLearners:
         # timesteps at the end of last learn + total_timesteps
 
         # note also that we don't pass callback to _setup_learn.
+        start_times = [None]*self.num_learners
         stop_times = [None]*self.num_learners
         for ID, learner in enumerate(self.learners):
             stop_times[ID], _ = learner._setup_learn(
@@ -364,6 +373,7 @@ class DecentralizedOnPolicyLearners:
                     reset_num_timesteps=reset_num_timesteps,
                     tb_log_name=tb_log_name
             )
+            start_times[ID] = learner.num_timesteps
         # even though stop_times is not necessarily
         # equal to total_timesteps, it should be constant.
         # otherwise some learners have been learning for longer
@@ -371,13 +381,17 @@ class DecentralizedOnPolicyLearners:
         assert is_constant_iterable(
             stop_times
         ), "modified_total_timesteps should be constant"
+        assert is_constant_iterable(
+            start_times
+        ), "start_times should be constant"
         # if so, set stop_time to the first value
         # of the list
         stop_time = stop_times[0]
+        start_time = start_times[0]
 
         on_training_start = getattr(callback, "_on_training_start", None)
         if on_training_start is not None:
-            on_training_start(self.learners[0], stop_time)
+            on_training_start(self, start_time, stop_time)
 
         # so far we're assuming learners are OnPolicy.
         # the OnPolicy class in stable_baselines

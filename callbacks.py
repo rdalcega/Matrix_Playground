@@ -1,3 +1,4 @@
+from sqlite3 import SQLITE_DROP_TEMP_INDEX
 from stable_baselines3.common.callbacks import BaseCallback
 import matrix_playground
 import os
@@ -6,22 +7,164 @@ import pprint
 import copy
 import matplotlib.pyplot as plt
 
-# HELPERS
+def action_to_interpretation(action):
+    if action == 0:
+        return "C"
+    elif action == 1:
+        return "D"
+    else:
+        assert False, "action should be 0 or 1"
 
-def write_histories(path, histories):
-    file = open(path, "w")
-    for history in histories:
-        file.write("-"*30 + "\n")
-        for ID, (agent, hist) in enumerate(history.items()):
-            if ID % 2 == 0:
-                for opponent, past in hist.items():
-                    file.write(agent + " vs " + opponent + "\n")
-                    for t in range(len(past)):
-                        file.write("\t" + str(past[-1-t]))
-                        if t < self.memory:
-                            file.write(" <-- (init)")
-                        file.write("\n")
-    file.close()
+class MatchHistory():
+    def __init__(
+        self,
+        agent,
+        opponent
+    ):
+        self.agent = agent
+        self.opponent = opponent
+        self.action_pairs = []
+    
+    def add_actions(self, agent_action, opponent_action):
+        self.action_pairs += [{
+            self.agent: agent_action,
+            self.opponent: opponent_action
+        }]
+
+    def write(self, file):
+        file.write("-:" + self.agent + ":" + self.opponent + "\n")
+        for action_pair in self.action_pairs:
+            file.write(action_to_interpretation(action_pair[self.agent]) + ":" + action_to_interpretation(action_pair[self.opponent]) + "\n")
+
+class EpisodeHistory():
+    def __init__(
+        self,
+        rollout_start,
+        timestamp,
+        pair_selection
+    ):
+        self.rollout_start = rollout_start
+        self.start_timestamp = timestamp
+        self.pair_selection = pair_selection
+        self.match_histories = []
+        for match_ID, (agent, opponent) in enumerate(pair_selection.items()):
+            if match_ID % 2 == 0:
+                self.match_histories += [MatchHistory(agent, opponent)]
+
+    def add_actions(
+        self,
+        actions
+    ):
+        for match_history in self.match_histories:
+            agent = match_history.agent
+            opponent = match_history.opponent
+            match_history.add_actions(actions[agent], actions[opponent])
+
+    def write(
+        self,
+        file
+    ):
+        file.write("*:" + str(self.rollout_start) + ":" + str(self.start_timestamp) +  "*\n")
+        for match_history in self.match_histories:
+            match_history.write(file)
+
+class History():
+    def __init__(
+        self,
+    ):
+        self.episode_histories = {}
+        self.last = None
+    def add_episode(
+        self,
+        rollout_start,
+        timestamp,
+        pair_selection
+    ):
+        self.episode_histories[timestamp] = EpisodeHistory(
+            rollout_start,
+            timestamp,
+            pair_selection
+        )
+        self.last = self.episode_histories[timestamp]
+    def add_actions(
+        self,
+        actions
+    ):
+        assert self.last is not None, "can only add actions after adding episode"
+        self.last.add_actions(actions)
+    def save(
+        self,
+        path
+    ):
+        file = open(path, "w")
+        self.write(file)
+        file.close()
+
+    def write(
+        self,
+        file
+    ):
+        for timestamp, episode_history in self.episode_histories.items():
+            episode_history.write(file)
+
+class log_history(BaseCallback):
+    def __init__(self, dir_path="histories", save=True, checkpoints=10):
+        os.mkdir(dir_path)
+        self.path= dir_path + "/history.txt"
+        self.save = save
+        self.checkpoints = checkpoints
+        
+
+    def _on_training_start(
+        self,
+        decentralized_on_policy_learners,
+        start_time,
+        stop_time
+    ) -> None:
+        self.history = History()
+        self.episode_start = True
+        self.steps_to_save = (stop_time - start_time)/self.checkpoints
+        self.steps_since_save = 0
+
+
+    def _on_rollout_start(self) -> None:
+        pass
+
+    def _on_step(
+        self,
+        decentralized_on_policy_learners,
+        rollout_steps,
+        actions,
+        observations,
+        rewards,
+        dones,
+        infos
+    ) -> History:
+        num_learners = decentralized_on_policy_learners.num_learners
+        sample_learner = decentralized_on_policy_learners.learners[0]
+        matrix_playground = decentralized_on_policy_learners.env.venv.vec_envs[0].par_env
+        if self.episode_start:
+            self.history.add_episode(
+                rollout_start=(rollout_steps==0),
+                timestamp = sample_learner.num_timesteps,
+                pair_selection=matrix_playground.pair_selection
+            )
+        self.history.add_actions({
+            "agent_" + str(ID): actions[ID] for ID in range(num_learners)
+        })
+        # next step will be an episode start if
+        # and only if agent 0 (or, equivalently,
+        # any other agent) is done.
+        self.episode_start = dones[0]
+        self.steps_since_save += 1
+        return self.history
+
+    def _on_rollout_end(self) -> dict:
+        if self.save and self.steps_since_save >= self.steps_to_save:
+            self.history.save(self.path)
+
+    def on_training_end(self) -> None:
+        pass
 
 class log_progress(BaseCallback):
     def __init__(
@@ -106,6 +249,10 @@ class log_progress(BaseCallback):
         cooperation.write("where type of timestep is int and type of cooperation is float\n")
         cooperation.write("START\n")
         cooperation.close()
+
+        #self.sample_episodes_path = self.dir_name + "/sample_episodes.txt"
+        #sample_episodes = open(self.sample_episodes_path, "w")
+        #reward.write("FORMAT\n")
 
         # create directory to store models in
         self.models_dir_name = self.dir_name + "/models"
