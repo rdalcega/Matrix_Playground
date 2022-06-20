@@ -389,10 +389,6 @@ class DecentralizedOnPolicyLearners:
         stop_time = stop_times[0]
         start_time = start_times[0]
 
-        on_training_start = getattr(callback, "_on_training_start", None)
-        if on_training_start is not None:
-            on_training_start(self, start_time, stop_time)
-
         # so far we're assuming learners are OnPolicy.
         # the OnPolicy class in stable_baselines
         # has a parameter called n_steps, which is
@@ -409,6 +405,10 @@ class DecentralizedOnPolicyLearners:
         ), "all learners must have the same n_steps"
         # if so, set n_steps to the first of them
         n_steps = self.learners[0].n_steps
+
+        on_training_start = getattr(callback, "_on_training_start", None)
+        if on_training_start is not None:
+            on_training_start(self, start_time, stop_time)
 
         # after these assertions, we can be sure
         # that self.learners[i].num_timesteps is the

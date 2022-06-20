@@ -11,7 +11,7 @@ learner = PPO
 n_steps = 100
 checkpoints= 10
 callback = log_history()
-total_timesteps=1e4
+total_timesteps=1e3
 
 learn_matrix_playground(
     game=game,
