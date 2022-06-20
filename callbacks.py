@@ -23,6 +23,7 @@ class Move():
         agent_reward,
         opponent_reward
     ):
+
         self.agent = {
             "action": action_to_interpretation(agent_action),
             "reward": agent_reward
@@ -70,11 +71,11 @@ class EpisodeHistory():
     def __init__(
         self,
         rollout_start,
-        timestamp,
+        start_timestamp,
         pair_selection
     ):
         self.rollout_start = rollout_start
-        self.start_timestamp = timestamp
+        self.start_timestamp = start_timestamp
         self.pair_selection = pair_selection
         self.match_histories = []
         for match_ID, (agent, opponent) in enumerate(pair_selection.items()):
@@ -104,24 +105,89 @@ class EpisodeHistory():
         for match_history in self.match_histories:
             match_history.write(file)
 
+class RolloutSummary():
+    def __init__(
+        self,
+        num_agents
+    ):
+        self.num_agents = num_agents
+        self.agents = [
+            "agent_" + ID 
+            for ID in range(self.num_agents)
+        ]
+        self.action_counts = {
+            agent: {
+                opponent: 0 for opponent in self.agents
+            } for agent in self.agents
+        }
+        self.cumulative_rewards = {
+            agent: {
+                opponent: 0 for opponent in self.agents
+            } for agent in self.agents
+        }
+        self.cooperation_counts = {
+            agent: {
+                opponent: 0 for opponent in self.agents
+            } for agent in self.agents
+        }
+
+    def summarize(self):
+        self.average_rewards = {
+            agent: {
+                opponent: self.cumulative_rewards[agent][opponent]/self.action_counts[agent][opponent]
+            } for opponent in self.agents
+        } for agent in self.agents
+        self.average_cooperation = {
+            agent: {
+                opponent: self.cooperation_counts[agent][opponent]/self.action_counts[agent][opponent]
+                for opponent in self.agents
+            } for agent in self.agents
+        }
+
+
+
 class History():
     def __init__(
         self,
+        num_agents
     ):
+
+        self.num_agents = num_agents
+
         self.episode_histories = {}
-        self.last = None
+        self.last_episode_history = None
+        self.last_episode_start = 0
+
+        self.rollout_summaries = {}
+        self.last_rollout_summary = None
+        self.last_rollout_start = 0
+
     def add_episode(
         self,
         rollout_start,
         timestamp,
         pair_selection
     ):
+        if rollout_start:
+            # we're about to start a new rollout
+            # save a summary of the last rollout
+            if self.last_rollout_summary is not None:
+                self.last_rollout_summary.summarize()
+            # start new rollout
+            self.last_rollout_start = timestamp
+            self.last_rollout_summary = RolloutSummary(self.num_agents)
+            self.rollout_summaries[
+                self.last_rollout_start
+            ] = self.last_rollout_summary
+
         self.episode_histories[timestamp] = EpisodeHistory(
             rollout_start,
             timestamp,
-            pair_selection
+            pair_selection,
+            self.rollout_summaries[self.l]
         )
         self.last = self.episode_histories[timestamp]
+
     def add_actions_and_rewards(
         self,
         actions,
