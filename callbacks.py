@@ -111,10 +111,15 @@ class RolloutSummary():
         num_agents
     ):
         self.num_agents = num_agents
+        self.pair_selection = None
         self.agents = [
             "agent_" + ID 
             for ID in range(self.num_agents)
         ]
+        # initialize helper dicts
+        # there are here to record
+        # the data that we'll summarize
+        # in summarize.
         self.action_counts = {
             agent: {
                 opponent: 0 for opponent in self.agents
@@ -131,19 +136,55 @@ class RolloutSummary():
             } for agent in self.agents
         }
 
+    def add_actions_and_rewards(self, actions, rewards):
+        # This is called from the "parent" History
+        # object, and we assume that that parent
+        # history object is taking care
+        # of changing pair_selection when it
+        # adds new episodes.
+        for agent, opponent in self.pair_selection.items():
+            self.action_counts[agent][opponent] += 1
+            self.cumulative_rewards[agent][opponent] += rewards[agent]
+            self.cooperation_counts[agent][opponent] += 1 - actions[agent]
+
     def summarize(self):
-        self.average_rewards = {
+        self.average_rewards_by_pairs = {
             agent: {
                 opponent: self.cumulative_rewards[agent][opponent]/self.action_counts[agent][opponent]
                 for opponent in self.agents
             } for agent in self.agents
         }
-        self.average_cooperation = {
+        self.average_cooperation_by_pairs = {
             agent: {
                 opponent: self.cooperation_counts[agent][opponent]/self.action_counts[agent][opponent]
                 for opponent in self.agents
             } for agent in self.agents
         }
+        self.average_rewards_by_agents = {}
+        self.average_cooperation_by_agents = {}
+        for agent in self.agents:
+            cumulative_reward = 0
+            cooperation_count = 0
+            action_count = 0
+            for opponent in self.agents:
+                cumulative_reward += self.cumulative_rewards[agent][opponent]
+                cooperation_count += self.cooperation_counts[agent][opponent]
+                action_count += self.action_counts[agent][opponent]
+            self.average_rewards_by_agents[agent] = cumulative_reward/action_count
+            self.average_cooperation_by_agents[agent] = cooperation_count/action_count
+        self.average_rewards = 0
+        self.average_cooperation = 0
+        for agent in self.agents:
+            num_agents = len(self.agents)
+            self.average_rewards += self.average_rewards_by_agents[agent]/num_agents
+            self.average_cooperation += self.average_cooperation_by_agents[agent]/num_agents
+
+        # and delete the helper dicts
+        del self.action_counts
+        del self.cumulative_rewards
+        del self.cooperation_counts
+
+
 
 
 
@@ -180,6 +221,10 @@ class History():
             self.rollout_summaries[
                 self.last_rollout_start
             ] = self.last_rollout_summary
+        # we need to change the last_rollout_summary's
+        # pair selection so that it logs actions and
+        # rewards correctly
+        self.last_rollout_summary.pair_selection = pair_selection
 
         self.episode_histories[timestamp] = EpisodeHistory(
             rollout_start,
@@ -194,8 +239,9 @@ class History():
         actions,
         rewards
     ):
-        assert self.last is not None, "can only add actions and rewards after adding episode"
-        self.last.add_actions_and_rewards(actions, rewards)
+        assert self.last_episode_history is not None, "can only add actions and rewards after adding episode"
+        self.last_episode_history.add_actions_and_rewards(actions, rewards)
+        self.last_rollout_summary.add_actions_and_rewards(actions, rewards)
 
     def save(
         self,
