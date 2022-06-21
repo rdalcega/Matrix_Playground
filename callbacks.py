@@ -38,7 +38,7 @@ class Move():
             self.agent["action"] + 
             "(" + str(self.agent["reward"]) + ")" + 
             ":" + self.opponent["action"] +
-            "(" + str(self.agent["reward"]) + ")" + "\n"
+            "(" + str(self.opponent["reward"]) + ")" + "\n"
         )
 
 class MatchHistory():
@@ -108,12 +108,15 @@ class EpisodeHistory():
 class RolloutSummary():
     def __init__(
         self,
-        num_agents
+        num_agents,
+        start_timestamp
     ):
         self.num_agents = num_agents
+        self.start_timestamp = start_timestamp
         self.pair_selection = None
+        self.summarized = False
         self.agents = [
-            "agent_" + ID 
+            "agent_" + str(ID) 
             for ID in range(self.num_agents)
         ]
         # initialize helper dicts
@@ -148,18 +151,29 @@ class RolloutSummary():
             self.cooperation_counts[agent][opponent] += 1 - actions[agent]
 
     def summarize(self):
+        # These first two dicts summarize
+        # the relationships between pairs
+        # of players
         self.average_rewards_by_pairs = {
             agent: {
-                opponent: self.cumulative_rewards[agent][opponent]/self.action_counts[agent][opponent]
+                opponent: 0
                 for opponent in self.agents
             } for agent in self.agents
         }
         self.average_cooperation_by_pairs = {
             agent: {
-                opponent: self.cooperation_counts[agent][opponent]/self.action_counts[agent][opponent]
+                opponent: 0
                 for opponent in self.agents
             } for agent in self.agents
         }
+        for agent in self.agents:
+            for opponent in self.agents:
+                if self.action_counts[agent][opponent] is not 0:
+                    self.average_rewards_by_pairs[agent][opponent] = self.cumulative_rewards[agent][opponent]/self.action_counts[agent][opponent]
+                    self.average_cooperation_by_pairs[agent][opponent] = self.cooperation_counts[agent][opponent]/self.action_counts[agent][opponent]
+       
+        # These next two dicts summarize
+        # the behavior of particular players
         self.average_rewards_by_agents = {}
         self.average_cooperation_by_agents = {}
         for agent in self.agents:
@@ -172,18 +186,80 @@ class RolloutSummary():
                 action_count += self.action_counts[agent][opponent]
             self.average_rewards_by_agents[agent] = cumulative_reward/action_count
             self.average_cooperation_by_agents[agent] = cooperation_count/action_count
+        # These last two attributes summarize
+        # the behavior of the population
         self.average_rewards = 0
         self.average_cooperation = 0
         for agent in self.agents:
             num_agents = len(self.agents)
             self.average_rewards += self.average_rewards_by_agents[agent]/num_agents
             self.average_cooperation += self.average_cooperation_by_agents[agent]/num_agents
-
         # and delete the helper dicts
         del self.action_counts
         del self.cumulative_rewards
         del self.cooperation_counts
 
+        self.summarized = True
+
+    def write(self, file):
+        if not self.summarized:
+            self.summarize()
+        file.write("*" + str(self.start_timestamp) + "*\n")
+        file.write("AVERAGE REWARD:" + format(self.average_rewards, '.2f') + "\n")
+        file.write("AVERGAE COOPERATION:" + format(self.average_cooperation, '.2f') + "\n")
+        # the entry length in the tables needs to be as long as the longest
+        # string.
+        entry_length = max(len(self.agents[-1]), len("COOPERATIONS"))
+        file.write("BY AGENT:\n")
+        file.write(" "*entry_length)
+        for agent in self.agents:
+            file.write(":")
+            file.write(" "*(entry_length - len(agent)) + agent)
+        file.write("\n")
+        file.write(" "*(entry_length - len("REWARDS")) + "REWARDS")
+        for agent in self.agents:
+            reward  = format(self.average_rewards_by_agents[agent], '.2f')
+            file.write(":")
+            file.write(" "*(entry_length - len(reward)) + reward)
+        file.write("\n")
+        file.write(" "*(entry_length - len("COOPERATIONS")) + "COOPERATIONS")
+        for agent in self.agents:
+            cooperation = format(self.average_cooperation_by_agents[agent], '.2f')
+            file.write(":")
+            file.write(" "*(entry_length - len(reward)) + cooperation)
+        file.write("\n")
+        file.write("REWARD BY PAIRS: \n")
+        file.write(" "*entry_length)
+        for agent in self.agents:
+            file.write(":")
+            file.write(" "*(entry_length - len(agent)) + agent)
+        file.write("\n")
+        for agent in self.agents:
+            file.write(" "*(entry_length - len(agent)) + agent)
+            for opponent in self.agents:
+                file.write(":")
+                if agent == opponent:
+                    file.write(" "*entry_length)
+                else:
+                    reward = format(self.average_rewards_by_pairs[agent][opponent], '.2f')
+                    file.write(" "*(entry_length - len(reward)) + reward)
+            file.write("\n")
+        file.write("COOPERATION BY PAIRS: \n")
+        file.write(" "*entry_length)
+        for agent in self.agents:
+            file.write(":")
+            file.write(" "*(entry_length - len(agent)) + agent)
+        file.write("\n")
+        for agent in self.agents:
+            file.write(" "*(entry_length - len(agent)) + agent)
+            for opponent in self.agents:
+                file.write(":")
+                if agent == opponent:
+                    file.write(" "*entry_length)
+                else:
+                    cooperation = format(self.average_cooperation_by_pairs[agent][opponent], '.2f')
+                    file.write(" "*(entry_length - len(cooperation)) + cooperation)
+            file.write("\n")
 
 
 
@@ -211,13 +287,12 @@ class History():
         pair_selection
     ):
         if rollout_start:
-            # we're about to start a new rollout
-            # save a summary of the last rollout
-            if self.last_rollout_summary is not None:
-                self.last_rollout_summary.summarize()
             # start new rollout
             self.last_rollout_start = timestamp
-            self.last_rollout_summary = RolloutSummary(self.num_agents)
+            self.last_rollout_summary = RolloutSummary(
+                self.num_agents,
+                self.last_rollout_start
+            )
             self.rollout_summaries[
                 self.last_rollout_start
             ] = self.last_rollout_summary
@@ -229,10 +304,9 @@ class History():
         self.episode_histories[timestamp] = EpisodeHistory(
             rollout_start,
             timestamp,
-            pair_selection,
-            self.rollout_summaries[self.l]
+            pair_selection
         )
-        self.last = self.episode_histories[timestamp]
+        self.last_episode_history = self.episode_histories[timestamp]
 
     def add_actions_and_rewards(
         self,
@@ -248,15 +322,13 @@ class History():
         dir_path
     ):
         file = open(dir_path + "/histories.txt", "w")
-        self.write(file)
-        file.close()
-
-    def write(
-        self,
-        file
-    ):
         for timestamp, episode_history in self.episode_histories.items():
             episode_history.write(file)
+        file.close()
+        file = open(dir_path + "/summaries.txt", "w")
+        for timestamp, rollout_summary in self.rollout_summaries.items():
+            rollout_summary.write(file)
+        file.close()
 
 class log_history(BaseCallback):
     def __init__(self, save=True, checkpoints=10):
@@ -270,7 +342,8 @@ class log_history(BaseCallback):
         stop_time,
         logs_path="logs"
     ) -> None:
-        self.history = History()
+        num_agents = decentralized_on_policy_learners.num_learners
+        self.history = History(num_agents)
         self.episode_start = True
         self.steps_to_save = (stop_time - start_time)/self.checkpoints
         self.steps_since_save = 0
