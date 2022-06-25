@@ -5,6 +5,7 @@ from datetime import datetime
 import pprint
 import copy
 import matplotlib.pyplot as plt
+import random
 
 # HELPERS
 
@@ -30,7 +31,8 @@ class log_progress(BaseCallback):
         num_agents,
         memory,
         horizon,
-        checkpoints=10
+        checkpoints=10,
+        save_model_checkpoints=True,
         #sample_episodes=5
     ):
         self.game = game
@@ -72,7 +74,7 @@ class log_progress(BaseCallback):
 
         # create folder inside of logs to store logs in
         # named by the date and time
-        self.dir_name = "logs/" + self.game["label"] + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.dir_name = "logs/" + self.game["label"] + datetime.now().strftime("%Y-%m-%d %H:%M:%S")+"_"+str(random.randint(0,1e9))
         os.mkdir(self.dir_name)
 
 
@@ -120,7 +122,7 @@ class log_progress(BaseCallback):
         self.reward_plot = self.reward_fig.add_subplot()
         self.avg_reward_fig = plt.figure()
         self.avg_reward_plot = self.avg_reward_fig.add_subplot()
-        
+
         self.cooperation_fig = plt.figure()
         self.cooperation_plot = self.cooperation_fig.add_subplot()
         self.avg_cooperation_fig = plt.figure()

@@ -16,6 +16,7 @@ from decentralized_on_policy_learners import DecentralizedOnPolicyLearners
 import matrix_playground
 
 from matrix_games import PrisonersDilemma
+from fixed_policy_learners import get_all_agents
 
 """
 NOTE: At the moment the code is set up so that
@@ -34,7 +35,7 @@ The reason this is necessary is that for recent
 versions of MacOS and recent versions of Python,
 the default way to start new processes
 is to "spawn" them from the parent. This means that
-when a parent process creates a new thread, 
+when a parent process creates a new thread,
 this thread has a "fresh" python interpreter
 process. However, it seems like soome of the libraries
 we're using assume that when a parent process creates
@@ -52,7 +53,10 @@ def learn_matrix_playground(
     learner=PPO,
     n_steps=100,
     callback=None,
-    total_timesteps=1e5):
+    total_timesteps=1e5,
+    agent_policies=None,
+    num_agents_per_policy=None,
+    ):
 
     # create parallel_env using parameters
     env = matrix_playground.parallel_env(
@@ -92,7 +96,7 @@ def learn_matrix_playground(
     # really do anything other that SB3VecEnvWrapper
     # with the default parameters. If you disagree
     # with (2) and can easily overcome (1), go for it!
-    
+
     env = ss.concat_vec_envs_v1(
         env,
         num_vec_envs=1,
@@ -100,22 +104,16 @@ def learn_matrix_playground(
         base_class='stable_baselines3'
     )
 
+    # Define our learners
+    learners = get_all_agents(env,n_steps,agent_policies,num_agents_per_policy,num_agents=num_agents)
+
     # SeveralAlgorithms is an adaptation
     # of the StableBaselines3 that (will?) allow
     # us to train the agents independently,
     # in parallel, each with its own architecture
     # and training method.
 
-    model = DecentralizedOnPolicyLearners([
-        learner(
-            'MlpPolicy',
-            env,
-            verbose=3,
-            gamma=1,
-            learning_rate=0.0003,
-            n_steps=n_steps
-        ) for ID in range(num_agents)
-    ], env)
+    model = DecentralizedOnPolicyLearners(learners, env)
 
     # Learn does what you'd expect it to do: it learns!
     # Again, the learners learn independently according
@@ -123,7 +121,7 @@ def learn_matrix_playground(
 
     # The callback API is the same as the callback
     # API for stable baselines 3, and it is documented
-    # here: 
+    # here:
     # https://stable-baselines3.readthedocs.io/en/master/guide/callbacks.html
 
     model.learn(
